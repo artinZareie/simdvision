@@ -1,0 +1,8 @@
+find_program(NASM_EXECUTABLE nasm REQUIRED)
+
+set(CMAKE_ASM_NASM_FLAGS "${CMAKE_ASM_NASM_FLAGS} -f elf64 -DARCH_X86_64=1")
+
+set_source_files_properties(${LIBSIMDCNN_ASM_SOURCES}
+    PROPERTIES
+    COMPILE_FLAGS "${EXTRA_ASM_FLAGS}"
+)

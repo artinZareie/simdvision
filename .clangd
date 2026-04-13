@@ -1,0 +1,15 @@
+CompileFlags:
+  Add: [-Wall, -Wextra, -pedantic]
+
+# Ensure clangd sees the include directory
+# (CMake usually generates compile_commands.json, but this helps IDEs)
+FallbackFlags: [-std=c23]
+
+# Cross-directory indexing
+Index:
+  Background: true
+  StandardLibrary: true
+
+# Header search path for library includes
+Paths:
+  - libsimdcnn/include
