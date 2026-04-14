@@ -32,6 +32,10 @@ TEST(VecAdd, Avx2Random)
     {
         ASSERT_FLOAT_EQ(a[i] + b[i], dst[i]);
     }
+
+    free(a);
+    free(b);
+    free(dst);
 }
 
 #endif
