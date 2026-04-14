@@ -1,15 +1,11 @@
 CompileFlags:
-  Add: [-Wall, -Wextra, -pedantic]
+  Add: 
+    - "-Wall"
+    - "-Wextra"
+    - "-pedantic"
+    # Provide the include path relative to the directory containing .clangd
+    - "-Ilibsimdcnn/include"
+    - "-Ilibsimdcnn/src/asm"
 
-# Ensure clangd sees the include directory
-# (CMake usually generates compile_commands.json, but this helps IDEs)
-FallbackFlags: [-std=c23]
-
-# Cross-directory indexing
 Index:
-  Background: true
   StandardLibrary: true
-
-# Header search path for library includes
-Paths:
-  - libsimdcnn/include

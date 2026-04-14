@@ -22,3 +22,5 @@ Thumbs.db
 *.lib
 *.exe
 *.dll
+
+compile_commands.json
