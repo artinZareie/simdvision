@@ -6,6 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+include(ArchitectureSupportCheck)
 include(NasmSupport)
 
 option(SIMD_CNN_BUILD_TESTS "Build tests for libsimdcnn" ON)

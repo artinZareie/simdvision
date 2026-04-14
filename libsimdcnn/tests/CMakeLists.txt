@@ -16,6 +16,14 @@ endif()
 
 add_executable(simdcnn_test test_vecadd.cpp)
 
+if(SIMD_CNN_AVX2_SUPPORTED)
+    target_compile_definitions(simdcnn_test PRIVATE HAVE_AVX2=1)
+endif()
+
+if(SIMD_CNN_SSE2_SUPPORTED)
+    target_compile_definitions(simdcnn_test PRIVATE HAVE_SSE2=1)
+endif()
+
 if(GTest_FOUND)
     target_link_libraries(simdcnn_test
         PRIVATE
