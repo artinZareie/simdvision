@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstdlib>
 #include <gtest/gtest.h>
 #include <simdcnn/simdcnn.h>
 
@@ -10,10 +12,19 @@ TEST(VecAdd, BasicCorrectness)
 
 TEST(VecAdd, Avx2Random)
 {
+    srand(time(NULL));
+
     const int N = 1024;
     float *a = (float *)malloc(N * sizeof(float));
     float *b = (float *)malloc(N * sizeof(float));
     float *dst = (float *)malloc(N * sizeof(float));
+
+    for (size_t i = 0; i < N; i++)
+    {
+        a[i] = rand() / (float)RAND_MAX;
+        b[i] = rand() / (float)RAND_MAX;
+        dst[i] = 0.0f;
+    }
 
     simdcnn_vecadd_f32_avx2(dst, a, b, N);
 
