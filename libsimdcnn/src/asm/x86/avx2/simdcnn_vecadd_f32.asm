@@ -4,14 +4,14 @@
 %include "x86inc.asm"
 
 INIT_YMM avx2
-global simdcnn_vecadd_f32_avx2
 
 section .text
 ; simdcnn_vecadd_f32_avx2(dst, a, b, n)
-; dst: pointer
-; a  : pointer
-; b  : pointer
-; n  : size_t
+; dst: pointer (float[n])
+; a  : pointer (float[n])
+; b  : pointer (float[n])
+; n  : uint64_t
+; dst = a + b
 ALIGN 16
 cvisible vecadd_f32, 4, 6, 8, dst, a, b, n, end_ptr, orig_dst
     ; sub rsp, 64
@@ -22,7 +22,7 @@ cvisible vecadd_f32, 4, 6, 8, dst, a, b, n, end_ptr, orig_dst
     jz .end
 
     mov end_ptrq, nq
-    and end_ptrq, -32
+    and end_ptrq, -32 ; Each iteration covers 8 * 4 = 32 elements
     shl end_ptrq, 2
     add end_ptrq, dstq ; dst's end pointer (n_vec)
     
@@ -71,9 +71,10 @@ ALIGN 16
     cmp dstq, end_ptrq
     jae .loop_vectorized_tail_done
 
-    movss xmm0, [aq]
-    addss xmm0, [bq]
-    movss [dstq], xmm0
+    vmovss xmm0, [aq]
+    vmovss xmm1, [bq]
+    vaddss xmm0, xmm0, xmm1
+    vmovss [dstq], xmm0
 
     add aq, 4
     add bq, 4

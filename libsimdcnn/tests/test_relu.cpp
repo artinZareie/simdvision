@@ -3,66 +3,55 @@
 #include <gtest/gtest.h>
 #include <simdcnn/simdcnn.h>
 
-TEST(VecAdd, BasicCorrectness)
-{
-    ASSERT_EQ(1, 1);
-}
-
 #ifdef HAVE_AVX2
 
-TEST(VecAdd, Avx2F32Random)
+TEST(Relu, Avx2F32Random)
 {
     srand(time(NULL));
 
     const int N = 1 << 16;
     float *a = (float *)malloc(N * sizeof(float));
-    float *b = (float *)malloc(N * sizeof(float));
     float *dst = (float *)malloc(N * sizeof(float));
 
     for (size_t i = 0; i < N; i++)
     {
-        a[i] = rand() / (float)RAND_MAX;
-        b[i] = rand() / (float)RAND_MAX;
+        a[i] = (rand() / (float)RAND_MAX) - 0.5f;
         dst[i] = 0.0f;
     }
 
-    simdcnn_vecadd_f32_avx2(dst, a, b, N);
+    simdcnn_relu_f32_avx2(dst, a, N);
 
     for (size_t i = 0; i < N; i++)
     {
-        ASSERT_FLOAT_EQ(a[i] + b[i], dst[i]);
+        ASSERT_FLOAT_EQ(std::max(0.0f, a[i]), dst[i]);
     }
 
     free(a);
-    free(b);
     free(dst);
 }
 
-TEST(VecAdd, Avx2F64Random)
+TEST(Relu, Avx2F64Random)
 {
     srand(time(NULL));
 
     const int N = 1 << 16;
     double *a = (double *)malloc(N * sizeof(double));
-    double *b = (double *)malloc(N * sizeof(double));
     double *dst = (double *)malloc(N * sizeof(double));
 
     for (size_t i = 0; i < N; i++)
     {
-        a[i] = rand() / (double)RAND_MAX;
-        b[i] = rand() / (double)RAND_MAX;
+        a[i] = (rand() / (double)RAND_MAX) - 0.5f;
         dst[i] = 0.0f;
     }
 
-    simdcnn_vecadd_f64_avx2(dst, a, b, N);
+    simdcnn_relu_f64_avx2(dst, a, N);
 
     for (size_t i = 0; i < N; i++)
     {
-        ASSERT_DOUBLE_EQ(a[i] + b[i], dst[i]);
+        ASSERT_DOUBLE_EQ(std::max(0.0, a[i]), dst[i]);
     }
 
     free(a);
-    free(b);
     free(dst);
 }
 

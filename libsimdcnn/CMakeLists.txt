@@ -11,7 +11,13 @@ set(LIBSIMDCNN_ASM_SOURCES "")
 if (SIMD_CNN_AVX2_SUPPORTED)
     message(STATUS "SIMD: Compiler supports AVX2, including AVX2 kernels")
     list(APPEND LIBSIMDCNN_ASM_SOURCES
+        # vecadd
         ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_vecadd_f32.asm
+        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_vecadd_f64.asm
+
+        # relu
+        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f32.asm
+        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f64.asm
     )
 
     # Define macro for C code

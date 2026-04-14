@@ -14,7 +14,10 @@ if(NOT GTest_FOUND)
     FetchContent_MakeAvailable(googletest)
 endif()
 
-add_executable(simdcnn_test test_vecadd.cpp)
+add_executable(simdcnn_test
+    test_vecadd.cpp
+    test_relu.cpp
+)
 
 if(SIMD_CNN_AVX2_SUPPORTED)
     target_compile_definitions(simdcnn_test PRIVATE HAVE_AVX2=1)
