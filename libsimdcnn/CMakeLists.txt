@@ -8,9 +8,10 @@ set(LIBSIMDCNN_C_SOURCES
 
 set(LIBSIMDCNN_ASM_SOURCES "")
 
-if (SIMD_CNN_AVX2_SUPPORTED)
+if(SIMD_CNN_AVX2_SUPPORTED)
     message(STATUS "SIMD: Compiler supports AVX2, including AVX2 kernels")
     list(APPEND LIBSIMDCNN_ASM_SOURCES
+
         # vecadd
         ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_vecadd_f32.asm
         ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_vecadd_f64.asm
@@ -21,11 +22,12 @@ if (SIMD_CNN_AVX2_SUPPORTED)
     )
 
     # Define macro for C code
-    target_compile_definitions(simdcnn PRIVATE HAVE_AVX2=1) 
+    target_compile_definitions(simdcnn PRIVATE HAVE_AVX2=1)
 endif()
 
-if (SIMD_CNN_SSE2_SUPPORTED)
+if(SIMD_CNN_SSE2_SUPPORTED)
     message(STATUS "SIMD: Compiler supports SSE2, including SSE2 kernels")
+
     # list(APPEND LIBSIMDCNN_ASM_SOURCES ${LIBSIMDCNN_ASM_DIR}/x86/sse2/simdcnn_vecadd_f32.asm)
 
     # Define macro fo C
@@ -55,6 +57,7 @@ target_include_directories(simdcnn
 target_compile_options(simdcnn PRIVATE
     $<$<COMPILE_LANGUAGE:C>:-Wall;-Wextra;-pedantic>
     $<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-pedantic>
+    $<$<AND:$<COMPILE_LANGUAGE:ASM_NASM>,$<CONFIG:Debug>>:-g;-F;dwarf>
 )
 
 # Aligned-stack for x86inc.asm

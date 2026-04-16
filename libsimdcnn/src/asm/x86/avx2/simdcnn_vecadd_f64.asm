@@ -16,6 +16,33 @@ ALIGN 16
 cvisible vecadd_f64, 4, 6, 8, dst, a, b, n, end_ptr, orig_dst
     test nq, nq ; If n == 0, exit
     jz .end
+    
+    ; Alignment prologue: Aligns dsq to 32-byte address
+    ; by reading until a 32-byte address.
+    mov end_ptrq, dstq
+    add end_ptrq, 31
+    and end_ptrq, -32
+
+.align_loop:
+    cmp dstq, end_ptrq
+    jae .align_loop_done
+
+    test nq, nq
+    jz .end
+
+    vmovsd xmm0, [aq]
+    vmovsd xmm1, [bq]
+    vaddsd xmm0, xmm0, xmm1
+    vmovsd [dstq], xmm0
+
+    add aq, 8
+    add bq, 8
+    add dstq, 8
+    sub nq, 1
+
+    jmp .align_loop
+
+.align_loop_done:
 
     mov end_ptrq, nq
     and end_ptrq, -16  ; Each iteration covers 4 * 4 = 16 elements
@@ -46,10 +73,10 @@ ALIGN 16
     vaddpd ymm4, ymm4, ymm5
     vaddpd ymm6, ymm6, ymm7
 
-    vmovupd [dstq], ymm0
-    vmovupd [dstq + 32], ymm2
-    vmovupd [dstq + 64], ymm4
-    vmovupd [dstq + 96], ymm6
+    vmovntpd [dstq], ymm0
+    vmovntpd [dstq + 32], ymm2
+    vmovntpd [dstq + 64], ymm4
+    vmovntpd [dstq + 96], ymm6
 
     add aq, 32 * 4
     add bq, 32 * 4

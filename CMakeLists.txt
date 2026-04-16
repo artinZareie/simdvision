@@ -8,15 +8,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+option(SIMD_CNN_BUILD_TESTS "Build tests for libsimdcnn" ON)
+option(SIMD_CNN_BUILD_BENCHMARK "Build benchmarks for libsimdcnn" ON)
+option(SIMD_CNN_VTUNE_SUPPORT "Include VTune headers to benchmarking and enable VTune ITT instrumentation" ON)
+
 include(ArchitectureSupportCheck)
 include(NasmSupport)
-
-option(SIMD_CNN_BUILD_TESTS "Build tests for libsimdcnn" ON)
+include(VTuneSupport)
 
 add_subdirectory(libsimdcnn)
 add_subdirectory(simdcnn-cli)
 
-if (SIMD_CNN_BUILD_TESTS)
+if(SIMD_CNN_BUILD_TESTS)
     enable_testing()
     add_subdirectory(libsimdcnn/tests)
+endif()
+
+if(SIMD_CNN_BUILD_BENCHMARK)
+    add_subdirectory(libsimdcnn/benchmark)
 endif()

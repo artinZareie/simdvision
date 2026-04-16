@@ -7,8 +7,8 @@ INIT_YMM avx2
 
 section .text
 ; simdcnn_relu_f64_avx2(dst, a, b, n)
-; dst: pointer
-; a  : pointer
+; dst: pointer float[n]
+; a  : pointer float[n]
 ; n  : size_t
 ; dst = relu(a)
 ALIGN 16
@@ -17,6 +17,30 @@ cvisible relu_f64, 3, 5, 9, dst, a, n, end_ptr, orig_dst
     jz .end
 
     vxorps ymm8, ymm8, ymm8 ; ymm8 = 0, used for vmaxps
+
+    ; Aignment Prologue: Process elements one by one until dq is 32-byte aligned
+    mov end_ptrq, dstq
+    add end_ptrq, 31
+    and end_ptrq, -32
+
+.align_loop:
+    cmp dstq, end_ptrq
+    jae .align_loop_done
+
+    test nq, nq
+    jz .end
+
+    vmovsd xmm0, [aq]
+    vmaxsd xmm0, xmm0, xmm8
+    vmovsd [dstq], xmm0
+
+    add aq, 8
+    add dstq, 8
+    sub nq, 1
+
+    jmp .align_loop
+
+.align_loop_done:
 
     mov end_ptrq, nq
     and end_ptrq, -16  ; Each iteration covers 8 * 4 = 32 elements
@@ -40,10 +64,10 @@ ALIGN 16
     vmaxpd ymm2, ymm2, ymm8
     vmaxpd ymm3, ymm3, ymm8
 
-    vmovupd [dstq], ymm0
-    vmovupd [dstq + 32], ymm1
-    vmovupd [dstq + 64], ymm2
-    vmovupd [dstq + 96], ymm3
+    vmovntpd [dstq], ymm0
+    vmovntpd [dstq + 32], ymm1
+    vmovntpd [dstq + 64], ymm2
+    vmovntpd [dstq + 96], ymm3
 
     add aq, 32 * 4
     add dstq, 32 * 4

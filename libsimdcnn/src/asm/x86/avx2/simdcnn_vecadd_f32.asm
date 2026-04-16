@@ -14,12 +14,35 @@ section .text
 ; dst = a + b
 ALIGN 16
 cvisible vecadd_f32, 4, 6, 8, dst, a, b, n, end_ptr, orig_dst
-    ; sub rsp, 64
-    ; vmovups [rsp + 0], ymm6
-    ; vmovups [rsp + 32], ymm7
-
     test nq, nq ; If n == 0, exit
     jz .end
+
+    ; Alignment prologue: Aligns dsq to 32-byte address
+    ; by reading until a 32-byte address.
+    mov end_ptrq, dstq
+    add end_ptrq, 31
+    and end_ptrq, -32
+
+.align_loop:
+    cmp dstq, end_ptrq
+    jae .align_loop_done
+
+    test nq, nq
+    jz .end
+
+    vmovss xmm0, [aq]
+    vmovss xmm1, [bq]
+    vaddss xmm0, xmm0, xmm1
+    vmovss [dstq], xmm0
+
+    add aq, 4
+    add bq, 4
+    add dstq, 4
+    sub nq, 1
+
+    jmp .align_loop
+
+.align_loop_done:
 
     mov end_ptrq, nq
     and end_ptrq, -32 ; Each iteration covers 8 * 4 = 32 elements
@@ -50,10 +73,10 @@ ALIGN 16
     vaddps ymm4, ymm4, ymm5
     vaddps ymm6, ymm6, ymm7
 
-    vmovups [dstq], ymm0
-    vmovups [dstq + 32], ymm2
-    vmovups [dstq + 64], ymm4
-    vmovups [dstq + 96], ymm6
+    vmovntps [dstq], ymm0
+    vmovntps [dstq + 32], ymm2
+    vmovntps [dstq + 64], ymm4
+    vmovntps [dstq + 96], ymm6
 
     add aq, 32 * 4
     add bq, 32 * 4
@@ -84,9 +107,6 @@ ALIGN 16
 .loop_vectorized_tail_done:
 
 .end:
-    ; vmovups ymm7, [rsp + 32]
-    ; vmovups ymm6, [rsp + 0]
-    ; add rsp, 64
 
     vzeroupper
     RET
