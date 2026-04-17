@@ -64,10 +64,10 @@ ALIGN 16
     vmaxpd ymm2, ymm2, ymm8
     vmaxpd ymm3, ymm3, ymm8
 
-    vmovntpd [dstq], ymm0
-    vmovntpd [dstq + 32], ymm1
-    vmovntpd [dstq + 64], ymm2
-    vmovntpd [dstq + 96], ymm3
+    vmovapd [dstq], ymm0
+    vmovapd [dstq + 32], ymm1
+    vmovapd [dstq + 64], ymm2
+    vmovapd [dstq + 96], ymm3
 
     add aq, 32 * 4
     add dstq, 32 * 4

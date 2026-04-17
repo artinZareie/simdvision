@@ -43,7 +43,7 @@ cvisible relu_f32, 3, 5, 9, dst, a, n, end_ptr, orig_dst
 .align_loop_done:
 
     mov end_ptrq, nq
-    and end_ptrq, -32  ; Each iteration covers 8 * 4 = 32 elements
+    and end_ptrq, -(8 * 4) ; Each iteration covers 8 * 4 = 32 elements
     shl end_ptrq, 2
     add end_ptrq, dstq ; dst's end pointer (n_vec)
     
@@ -64,10 +64,10 @@ ALIGN 16
     vmaxps ymm2, ymm2, ymm8
     vmaxps ymm3, ymm3, ymm8
 
-    vmovntps [dstq], ymm0
-    vmovntps [dstq + 32], ymm1
-    vmovntps [dstq + 64], ymm2
-    vmovntps [dstq + 96], ymm3
+    vmovaps [dstq], ymm0
+    vmovaps [dstq + 32], ymm1
+    vmovaps [dstq + 64], ymm2
+    vmovaps [dstq + 96], ymm3
 
     add aq, 32 * 4
     add dstq, 32 * 4

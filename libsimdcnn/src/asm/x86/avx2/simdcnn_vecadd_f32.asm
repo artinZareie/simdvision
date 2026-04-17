@@ -73,10 +73,10 @@ ALIGN 16
     vaddps ymm4, ymm4, ymm5
     vaddps ymm6, ymm6, ymm7
 
-    vmovntps [dstq], ymm0
-    vmovntps [dstq + 32], ymm2
-    vmovntps [dstq + 64], ymm4
-    vmovntps [dstq + 96], ymm6
+    vmovaps [dstq], ymm0
+    vmovaps [dstq + 32], ymm2
+    vmovaps [dstq + 64], ymm4
+    vmovups [dstq + 96], ymm6
 
     add aq, 32 * 4
     add bq, 32 * 4
