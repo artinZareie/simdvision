@@ -1,5 +1,4 @@
 #include <benchmark/benchmark.h>
-#include <ittnotify.h>
 #include <random>
 #include <simdcnn/simdcnn.h>
 #include <vector>

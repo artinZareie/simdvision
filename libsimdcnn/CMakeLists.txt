@@ -1,5 +1,8 @@
 add_library(simdcnn SHARED)
 
+find_package(OpenMP REQUIRED)
+target_link_libraries(simdcnn PRIVATE OpenMP::OpenMP_C)
+
 set(LIBSIMDCNN_ASM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/asm)
 
 set(LIBSIMDCNN_C_SOURCES
