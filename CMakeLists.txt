@@ -11,6 +11,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 option(SIMD_CNN_BUILD_TESTS "Build tests for libsimdcnn" ON)
 option(SIMD_CNN_BUILD_BENCHMARK "Build benchmarks for libsimdcnn" ON)
 option(SIMD_CNN_VTUNE_SUPPORT "Include VTune headers to benchmarking and enable VTune ITT instrumentation" ON)
+option(SIMD_CNN_ERRORS_ENABLED "Enables checks for aliasing errors, etc. If disabled, all operations yield success; It doesn't effect memory leak checks though." ON)
 
 include(ArchitectureSupportCheck)
 include(NasmSupport)

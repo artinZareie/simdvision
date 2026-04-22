@@ -3,6 +3,10 @@ add_library(simdcnn SHARED)
 find_package(OpenMP REQUIRED)
 target_link_libraries(simdcnn PRIVATE OpenMP::OpenMP_C)
 
+if(SIMD_CNN_ERRORS_ENABLED)
+    target_compile_definitions(simdcnn PRIVATE SIMDCNN_SGEMM_ERRORS_ENABLED=1)
+endif()
+
 set(LIBSIMDCNN_ASM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/asm)
 
 set(LIBSIMDCNN_C_SOURCES
@@ -22,6 +26,10 @@ if(SIMD_CNN_AVX2_SUPPORTED)
         # relu
         ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f32.asm
         ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f64.asm
+    )
+
+    list(APPEND LIBSIMDCNN_C_SOURCES
+        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_sgemm.c
     )
 
     # Define macro for C code
