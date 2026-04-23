@@ -17,6 +17,7 @@ endif()
 add_executable(simdcnn_test
     test_vecadd.cpp
     test_relu.cpp
+    test_sgemm.cpp
 )
 
 if(SIMD_CNN_AVX2_SUPPORTED)

@@ -11,6 +11,7 @@ set(LIBSIMDCNN_ASM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/asm)
 
 set(LIBSIMDCNN_C_SOURCES
     src/simdcnn.c
+    src/debug.c
 )
 
 set(LIBSIMDCNN_ASM_SOURCES "")
@@ -34,6 +35,10 @@ if(SIMD_CNN_AVX2_SUPPORTED)
 
     # Define macro for C code
     target_compile_definitions(simdcnn PRIVATE HAVE_AVX2=1)
+
+    target_compile_options(simdcnn PRIVATE
+        $<$<COMPILE_LANGUAGE:C>:-mavx2 -mfma>
+    )
 endif()
 
 if(SIMD_CNN_SSE2_SUPPORTED)
