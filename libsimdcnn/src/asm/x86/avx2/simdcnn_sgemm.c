@@ -155,7 +155,7 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
         float *packedA = packed_As[tid];
         float *packedB = packed_Bs[tid];
 
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic)
         for (size_t ii = 0; ii < M; ii += SIMDCNN_SGEMM_AVX2_MC)
         {
             const size_t end_ii = SIMDCNN_MIN(ii + SIMDCNN_SGEMM_AVX2_MC, M);
