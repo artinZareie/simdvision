@@ -51,7 +51,7 @@ static void simdcnn_sgemm_pack_A_avx2_(float *packedA, const float *A, size_t K,
 }
 
 static void simdcnn_sgemm_pack_B_avx2_(float *packedB, const float *B, size_t N, size_t kk, size_t jj, size_t size_kk,
-                                       size_t size_jj)
+                                       size_t size_jj, float alpha)
 {
     for (size_t i = 0; i < SIMDCNN_SGEMM_AVX2_KC; ++i)
     {
@@ -64,7 +64,7 @@ static void simdcnn_sgemm_pack_B_avx2_(float *packedB, const float *B, size_t N,
             }
             else
             {
-                packedB[j + i * SIMDCNN_SGEMM_AVX2_NC] = B[(i + kk) * N + j + jj];
+                packedB[j + i * SIMDCNN_SGEMM_AVX2_NC] = B[(i + kk) * N + j + jj] * alpha;
             }
         }
     }
@@ -134,28 +134,26 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
         }
     }
 
+    if (beta != 1.0f && beta != 0.0f)
+    {
+        for (size_t i = 0; i < M * N; ++i)
+        {
+            C[i] *= beta;
+        }
+    }
+    else if (beta == 0.0f)
+    {
+        for (size_t i = 0; i < M * N; ++i)
+        {
+            C[i] = 0.0f;
+        }
+    }
+
 #pragma omp parallel num_threads((int)num_threads)
     {
         size_t tid = omp_get_thread_num();
         float *packedA = packed_As[tid];
         float *packedB = packed_Bs[tid];
-
-        if (beta != 1.0f && beta != 0.0f)
-        {
-#pragma omp for schedule(static)
-            for (size_t i = 0; i < M * N; ++i)
-            {
-                C[i] *= beta;
-            }
-        }
-        else if (beta == 0.0f)
-        {
-#pragma omp for schedule(static)
-            for (size_t i = 0; i < M * N; ++i)
-            {
-                C[i] = 0.0f;
-            }
-        }
 
 #pragma omp for schedule(dynamic)
         for (size_t ii = 0; ii < M; ii += SIMDCNN_SGEMM_AVX2_MC)
@@ -175,7 +173,7 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
                     const size_t end_jj = SIMDCNN_MIN(jj + SIMDCNN_SGEMM_AVX2_NC, N);
                     const size_t size_jj = end_jj - jj;
 
-                    simdcnn_sgemm_pack_B_avx2_(packedB, B, N, kk, jj, size_kk, size_jj);
+                    simdcnn_sgemm_pack_B_avx2_(packedB, B, N, kk, jj, size_kk, size_jj, alpha);
 
                     for (size_t i = 0; i < (size_ii / SIMDCNN_SGEMM_AVX2_MR) * (SIMDCNN_SGEMM_AVX2_MR);
                          i += SIMDCNN_SGEMM_AVX2_MR)
@@ -247,20 +245,6 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
                                 b_packed += SIMDCNN_SGEMM_AVX2_NC;
                             }
 
-                            __m256 valpha = _mm256_set1_ps(alpha);
-                            c00 = _mm256_mul_ps(c00, valpha);
-                            c01 = _mm256_mul_ps(c01, valpha);
-                            c10 = _mm256_mul_ps(c10, valpha);
-                            c11 = _mm256_mul_ps(c11, valpha);
-                            c20 = _mm256_mul_ps(c20, valpha);
-                            c21 = _mm256_mul_ps(c21, valpha);
-                            c30 = _mm256_mul_ps(c30, valpha);
-                            c31 = _mm256_mul_ps(c31, valpha);
-                            c40 = _mm256_mul_ps(c40, valpha);
-                            c41 = _mm256_mul_ps(c41, valpha);
-                            c50 = _mm256_mul_ps(c50, valpha);
-                            c51 = _mm256_mul_ps(c51, valpha);
-
                             _mm256_storeu_ps(C + (i + ii + 0) * N + j + jj, c00);
                             _mm256_storeu_ps(C + (i + ii + 0) * N + j + jj + 8, c01);
                             _mm256_storeu_ps(C + (i + ii + 1) * N + j + jj, c10);
@@ -274,7 +258,10 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
                             _mm256_storeu_ps(C + (i + ii + 5) * N + j + jj, c50);
                             _mm256_storeu_ps(C + (i + ii + 5) * N + j + jj + 8, c51);
                         }
+                    }
 
+                    for (size_t i = 0; i < (size_ii / SIMDCNN_SGEMM_AVX2_MR) * SIMDCNN_SGEMM_AVX2_MR; ++i)
+                    {
                         for (size_t j = (size_jj / SIMDCNN_SGEMM_AVX2_NR) * SIMDCNN_SGEMM_AVX2_NR; j < size_jj; ++j)
                         {
                             float sum = 0.0f;
@@ -284,7 +271,7 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
                                 sum += packedA[k * SIMDCNN_SGEMM_AVX2_MC + i] * packedB[k * SIMDCNN_SGEMM_AVX2_NC + j];
                             }
 
-                            C[(ii + i) * N + (jj + j)] += alpha * sum;
+                            C[(ii + i) * N + (jj + j)] += sum;
                         }
                     }
 
@@ -299,7 +286,7 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
                                 sum += packedA[k * SIMDCNN_SGEMM_AVX2_MC + i] * packedB[k * SIMDCNN_SGEMM_AVX2_NC + j];
                             }
 
-                            C[(ii + i) * N + (jj + j)] += alpha * sum;
+                            C[(ii + i) * N + (jj + j)] += sum;
                         }
                     }
                 }
