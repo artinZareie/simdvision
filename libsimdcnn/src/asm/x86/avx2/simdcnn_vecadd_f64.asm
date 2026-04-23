@@ -12,7 +12,7 @@ section .text
 ; b  : pointer (double[n])
 ; n  : uint64_t
 ; dst = a + b
-ALIGN 16
+ALIGN 32
 cvisible vecadd_f64, 4, 6, 8, dst, a, b, n, end_ptr, orig_dst
     test nq, nq ; If n == 0, exit
     jz .end
@@ -51,7 +51,7 @@ cvisible vecadd_f64, 4, 6, 8, dst, a, b, n, end_ptr, orig_dst
     
     mov orig_dstq, dstq
 
-ALIGN 16
+ALIGN 32
 .loop_vectorized:
     cmp dstq, end_ptrq
     jae .loop_vectorized_done
@@ -89,7 +89,7 @@ ALIGN 16
     shl end_ptrq, 3
     add end_ptrq, orig_dstq
 
-ALIGN 16
+ALIGN 32
 .loop_vectorized_tail:
     cmp dstq, end_ptrq
     jae .loop_vectorized_tail_done
