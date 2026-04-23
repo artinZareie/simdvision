@@ -1,13 +1,16 @@
 #include "simdcnn_sgemm.h"
 #include <assert.h>
+#include <immintrin.h>
+#include <math.h>
 #include <omp.h>
 #include <simdcnn/debug.h>
+#include <simdcnn/def.h>
 #include <simdcnn/errors.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-// Since this is a static function, I removed it from the header.
+/// Cleans up memory allocated for simdcnn_sgemm_avx2
 static void simdcnn_sgemm_cleanup_avx2_(float **packed_As, float **packed_Bs, size_t n)
 {
     for (size_t i = 0; i < n; ++i)
@@ -26,12 +29,50 @@ static void simdcnn_sgemm_cleanup_avx2_(float **packed_As, float **packed_Bs, si
         free(packed_Bs);
 }
 
-/// OpenBLIS-like SGEMM
-/// C = aAB + bC
-/// A, B and C are supposed to be row-major matrices of sizes M * K, K * N, and M * N
-/// A, B and C SHOULD NOT overlap.
-simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *const C, const float alpha, const float beta, const float *const A,
-                                         const float *const B, const uint64_t M, const uint64_t K, const uint64_t N)
+/// Copies a panel of A into the cache.
+static void simdcnn_sgemm_pack_A_avx2_(float *packedA, const float *A, size_t M, size_t ii, size_t kk, size_t size_ii,
+                                       size_t size_kk)
+{
+    for (size_t j = 0; j < SIMDCNN_SGEMM_AVX2_KC; ++j)
+    {
+#pragma GCC unroll 8
+        for (size_t i = 0; i < SIMDCNN_SGEMM_AVX2_MC; ++i)
+        {
+            if (i >= size_ii || j >= size_kk)
+            {
+                packedA[i + j * SIMDCNN_SGEMM_AVX2_MC] = 0.0f;
+            }
+            else
+            {
+                packedA[i + j * SIMDCNN_SGEMM_AVX2_MC] = A[(i + ii) * M + (j + kk)];
+            }
+        }
+    }
+}
+
+static void simdcnn_sgemm_pack_B_avx2_(float *packedB, const float *B, size_t N, size_t kk, size_t jj, size_t size_kk,
+                                       size_t size_jj)
+{
+    for (size_t i = 0; i < SIMDCNN_SGEMM_AVX2_KC; ++i)
+    {
+#pragma GCC unroll 8
+        for (size_t j = 0; j < SIMDCNN_SGEMM_AVX2_NC; ++j)
+        {
+            if (i >= size_kk || j >= size_jj)
+            {
+                packedB[j + i * SIMDCNN_SGEMM_AVX2_NC] = 0.0f;
+            }
+            else
+            {
+                packedB[j + i * SIMDCNN_SGEMM_AVX2_NC] = B[(i + kk) * N + j];
+            }
+        }
+    }
+}
+
+/// See header for fulll documentation.
+simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float beta, const float *A, const float *B,
+                                         uint64_t M, uint64_t K, uint64_t N)
 {
     const size_t size_A = (size_t)M * K;
     const size_t size_B = (size_t)K * N;
@@ -52,9 +93,8 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *const C, const float alpha, cons
     }
 #endif
 
-    size_t max_threads = omp_get_max_threads();
-    size_t num_threads =
-        (max_threads > SIMDCNN_MATMUL_AVX2_MAX_THREADS) ? SIMDCNN_MATMUL_AVX2_MAX_THREADS : max_threads;
+    const size_t max_threads = omp_get_max_threads();
+    const size_t num_threads = max_threads;
 
     float **packed_As = (float **)malloc(num_threads * sizeof(float *));
     if (!packed_As)
@@ -69,11 +109,11 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *const C, const float alpha, cons
         return SIMDCNN_SGEMM_OUT_OF_MEMORY;
     }
 
-    const size_t packed_A_size = (SIMDCNN_MATMUL_AVX2_MC * SIMDCNN_MATMUL_AVX2_KC + (SIMDCNN_PAGE_ALIGNMENT - 1)) &
-                                 ~(SIMDCNN_PAGE_ALIGNMENT - 1);
+    const size_t packed_A_size =
+        (SIMDCNN_SGEMM_AVX2_MC * SIMDCNN_SGEMM_AVX2_KC + (SIMDCNN_PAGE_ALIGNMENT - 1)) & ~(SIMDCNN_PAGE_ALIGNMENT - 1);
 
-    const size_t packed_B_size = (SIMDCNN_MATMUL_AVX2_NC * SIMDCNN_MATMUL_AVX2_KC + (SIMDCNN_PAGE_ALIGNMENT - 1)) &
-                                 ~(SIMDCNN_PAGE_ALIGNMENT - 1);
+    const size_t packed_B_size =
+        (SIMDCNN_SGEMM_AVX2_NC * SIMDCNN_SGEMM_AVX2_KC + (SIMDCNN_PAGE_ALIGNMENT - 1)) & ~(SIMDCNN_PAGE_ALIGNMENT - 1);
 
     for (size_t i = 0; i < num_threads; ++i)
     {
@@ -101,10 +141,185 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *const C, const float alpha, cons
         float *packedB = packed_Bs[tid];
 
 #pragma omp for schedule(dynamic)
-        for (size_t ii = 0; ii < M; ii += SIMDCNN_MATMUL_AVX2_MR)
+        for (size_t ii = 0; ii < M; ii += SIMDCNN_SGEMM_AVX2_MC)
         {
-            for (size_t kk = 0; kk < K; kk += SIMDCNN_MATMUL_AVX2_KC)
+            const size_t end_ii = SIMDCNN_MIN(ii + SIMDCNN_SGEMM_AVX2_MC, M);
+            const size_t size_ii = end_ii - ii;
+
+            for (size_t kk = 0; kk < K; kk += SIMDCNN_SGEMM_AVX2_KC)
             {
+                const size_t end_kk = SIMDCNN_MIN(kk + SIMDCNN_SGEMM_AVX2_KC, K);
+                const size_t size_kk = end_kk - kk;
+
+                simdcnn_sgemm_pack_A_avx2_(packedA, A, M, ii, kk, size_ii, size_kk);
+
+                for (size_t jj = 0; jj < N; jj += SIMDCNN_SGEMM_AVX2_NC)
+                {
+                    const size_t end_jj = SIMDCNN_MIN(jj + SIMDCNN_SGEMM_AVX2_NC, N);
+                    const size_t size_jj = end_jj - jj;
+
+                    simdcnn_sgemm_pack_B_avx2_(packedB, B, N, kk, jj, size_kk, size_jj);
+
+                    for (size_t i = 0; i < (size_ii / SIMDCNN_SGEMM_AVX2_MR) * (SIMDCNN_SGEMM_AVX2_MR);
+                         i += SIMDCNN_SGEMM_AVX2_MR)
+                    {
+                        for (size_t j = 0; j < (size_jj / SIMDCNN_SGEMM_AVX2_NR) * SIMDCNN_SGEMM_AVX2_NR;
+                             j += SIMDCNN_SGEMM_AVX2_NR)
+                        {
+                            __m256 vbeta = _mm256_set1_ps(beta);
+                            __m256 c00;
+                            __m256 c01;
+                            __m256 c10;
+                            __m256 c11;
+                            __m256 c20;
+                            __m256 c21;
+                            __m256 c30;
+                            __m256 c31;
+                            __m256 c40;
+                            __m256 c41;
+                            __m256 c50;
+                            __m256 c51;
+
+                            if (beta == 0.0f)
+                            {
+                                c00 = _mm256_setzero_ps();
+                                c01 = _mm256_setzero_ps();
+                                c10 = _mm256_setzero_ps();
+                                c11 = _mm256_setzero_ps();
+                                c20 = _mm256_setzero_ps();
+                                c21 = _mm256_setzero_ps();
+                                c30 = _mm256_setzero_ps();
+                                c31 = _mm256_setzero_ps();
+                                c40 = _mm256_setzero_ps();
+                                c41 = _mm256_setzero_ps();
+                                c50 = _mm256_setzero_ps();
+                                c51 = _mm256_setzero_ps();
+                            }
+                            else
+                            {
+                                c00 = _mm256_loadu_ps(C + (i + ii + 0) * N + j + jj);
+                                c01 = _mm256_loadu_ps(C + (i + ii + 0) * N + j + jj + 8);
+                                c10 = _mm256_loadu_ps(C + (i + ii + 1) * N + j + jj);
+                                c11 = _mm256_loadu_ps(C + (i + ii + 1) * N + j + jj + 8);
+                                c20 = _mm256_loadu_ps(C + (i + ii + 2) * N + j + jj);
+                                c21 = _mm256_loadu_ps(C + (i + ii + 2) * N + j + jj + 8);
+                                c30 = _mm256_loadu_ps(C + (i + ii + 3) * N + j + jj);
+                                c31 = _mm256_loadu_ps(C + (i + ii + 3) * N + j + jj + 8);
+                                c40 = _mm256_loadu_ps(C + (i + ii + 4) * N + j + jj);
+                                c41 = _mm256_loadu_ps(C + (i + ii + 4) * N + j + jj + 8);
+                                c50 = _mm256_loadu_ps(C + (i + ii + 5) * N + j + jj);
+                                c51 = _mm256_loadu_ps(C + (i + ii + 5) * N + j + jj + 8);
+
+                                if (beta != 1.0f)
+                                {
+                                    c00 = _mm256_mul_ps(c00, vbeta);
+                                    c01 = _mm256_mul_ps(c01, vbeta);
+                                    c10 = _mm256_mul_ps(c10, vbeta);
+                                    c11 = _mm256_mul_ps(c11, vbeta);
+                                    c20 = _mm256_mul_ps(c20, vbeta);
+                                    c21 = _mm256_mul_ps(c21, vbeta);
+                                    c30 = _mm256_mul_ps(c30, vbeta);
+                                    c31 = _mm256_mul_ps(c31, vbeta);
+                                    c40 = _mm256_mul_ps(c40, vbeta);
+                                    c41 = _mm256_mul_ps(c41, vbeta);
+                                    c50 = _mm256_mul_ps(c50, vbeta);
+                                    c51 = _mm256_mul_ps(c51, vbeta);
+                                }
+                            }
+
+                            const float *a_packed = packedA + i;
+                            const float *b_packed = packedB + j;
+
+                            for (size_t k = 0; k < size_kk; k += 1)
+                            {
+
+                                __m256 b0 = _mm256_loadu_ps(b_packed);
+                                __m256 b1 = _mm256_loadu_ps(b_packed + 8);
+
+                                __m256 a0 = _mm256_broadcast_ss(a_packed);
+                                c00 = _mm256_fmadd_ps(a0, b0, c00);
+                                c01 = _mm256_fmadd_ps(a0, b1, c01);
+
+                                __m256 a1 = _mm256_broadcast_ss(a_packed + 1);
+                                c10 = _mm256_fmadd_ps(a1, b0, c10);
+                                c11 = _mm256_fmadd_ps(a1, b1, c11);
+
+                                __m256 a2 = _mm256_broadcast_ss(a_packed + 2);
+                                c20 = _mm256_fmadd_ps(a2, b0, c20);
+                                c21 = _mm256_fmadd_ps(a2, b1, c21);
+
+                                __m256 a3 = _mm256_broadcast_ss(a_packed + 3);
+                                c30 = _mm256_fmadd_ps(a3, b0, c30);
+                                c31 = _mm256_fmadd_ps(a3, b1, c31);
+
+                                __m256 a4 = _mm256_broadcast_ss(a_packed + 4);
+                                c40 = _mm256_fmadd_ps(a4, b0, c40);
+                                c41 = _mm256_fmadd_ps(a4, b1, c41);
+
+                                __m256 a5 = _mm256_broadcast_ss(a_packed + 5);
+                                c50 = _mm256_fmadd_ps(a5, b0, c50);
+                                c51 = _mm256_fmadd_ps(a5, b1, c51);
+
+                                a_packed += SIMDCNN_SGEMM_AVX2_MC;
+                                b_packed += SIMDCNN_SGEMM_AVX2_NC;
+                            }
+
+                            __m256 valpha = _mm256_set1_ps(alpha);
+                            c00 = _mm256_mul_ps(c00, valpha);
+                            c01 = _mm256_mul_ps(c01, valpha);
+                            c10 = _mm256_mul_ps(c10, valpha);
+                            c11 = _mm256_mul_ps(c11, valpha);
+                            c20 = _mm256_mul_ps(c20, valpha);
+                            c21 = _mm256_mul_ps(c21, valpha);
+                            c30 = _mm256_mul_ps(c30, valpha);
+                            c31 = _mm256_mul_ps(c31, valpha);
+                            c40 = _mm256_mul_ps(c40, valpha);
+                            c41 = _mm256_mul_ps(c41, valpha);
+                            c50 = _mm256_mul_ps(c50, valpha);
+                            c51 = _mm256_mul_ps(c51, valpha);
+
+                            _mm256_storeu_ps(C + (i + ii + 0) * N + j + jj, c00);
+                            _mm256_storeu_ps(C + (i + ii + 0) * N + j + jj + 8, c01);
+                            _mm256_storeu_ps(C + (i + ii + 1) * N + j + jj, c10);
+                            _mm256_storeu_ps(C + (i + ii + 1) * N + j + jj + 8, c11);
+                            _mm256_storeu_ps(C + (i + ii + 2) * N + j + jj, c20);
+                            _mm256_storeu_ps(C + (i + ii + 2) * N + j + jj + 8, c21);
+                            _mm256_storeu_ps(C + (i + ii + 3) * N + j + jj, c30);
+                            _mm256_storeu_ps(C + (i + ii + 3) * N + j + jj + 8, c31);
+                            _mm256_storeu_ps(C + (i + ii + 4) * N + j + jj, c40);
+                            _mm256_storeu_ps(C + (i + ii + 4) * N + j + jj + 8, c41);
+                            _mm256_storeu_ps(C + (i + ii + 5) * N + j + jj, c50);
+                            _mm256_storeu_ps(C + (i + ii + 5) * N + j + jj + 8, c51);
+                        }
+
+                        for (size_t j = (size_jj / SIMDCNN_SGEMM_AVX2_NC) * SIMDCNN_SGEMM_AVX2_NC; j < size_jj; ++j)
+                        {
+                            float sum = 0.0f;
+
+                            for (size_t k = 0; k < size_kk; ++k)
+                            {
+                                sum += packedA[k * SIMDCNN_SGEMM_AVX2_MC + i] * packedB[k * SIMDCNN_SGEMM_AVX2_NC + j];
+                            }
+
+                            C[(ii + i) * N + (jj + j)] = alpha * sum + beta * C[(ii + i) * N + (jj + j)];
+                        }
+                    }
+
+                    for (size_t i = (size_ii / SIMDCNN_SGEMM_AVX2_MR) * SIMDCNN_SGEMM_AVX2_MR; i < size_ii; ++i)
+                    {
+                        for (size_t j = 0; j < size_jj; ++j)
+                        {
+                            float sum = 0.0f;
+
+                            for (size_t k = 0; k < size_kk; ++k)
+                            {
+                                sum += packedA[k * SIMDCNN_SGEMM_AVX2_MC + i] * packedB[k * SIMDCNN_SGEMM_AVX2_NC + j];
+                            }
+
+                            C[(ii + i) * N + (jj + j)] += alpha * sum;
+                        }
+                    }
+                }
             }
         }
     }
