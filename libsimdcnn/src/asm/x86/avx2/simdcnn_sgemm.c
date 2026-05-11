@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <simdcnn/debug.h>
 #include <simdcnn/def.h>
@@ -219,8 +220,8 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
                             }
                             else
                             {
-                                for (size_t z = 0; z < SIMDCNN_SGEMM_AVX2_MR * SIMDCNN_SGEMM_AVX2_NR; ++z)
-                                    ukernel_buffer[z] = 0.0f;
+                                memset((void *)ukernel_buffer, 0,
+                                       sizeof(float) * SIMDCNN_SGEMM_AVX2_NR * SIMDCNN_SGEMM_AVX2_MR);
 
                                 simdcnn_sgemm_ukernel_6x16_avx2(ukernel_buffer, SIMDCNN_SGEMM_AVX2_NR, packedA + i,
                                                                 packedB + j, size_kk);
