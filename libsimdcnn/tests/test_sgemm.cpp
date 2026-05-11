@@ -1,5 +1,6 @@
 /// PAY ATTENTION: This version of this file is completely AI generated, and will be replaced by a handwritted version
 /// in future.
+#include "simdcnn/config.h"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -160,6 +161,98 @@ TEST(Sgemm, K_eq_1)
 TEST(Sgemm, TallK_2x100x2)
 {
     run_test(2, 100, 2, 1.0f, 1.0f);
+}
+
+// =========================================================================
+//  Tests using user‑supplied packed buffers (buffer reuse)
+// =========================================================================
+
+// Helper: page-aligned allocation (required by the library)
+static void *page_aligned_alloc(size_t size)
+{
+    return aligned_alloc(4096, size);
+}
+
+// Shared test body for buffer reuse cases
+static void test_with_buffers(uint64_t M, uint64_t K, uint64_t N, float alpha, float beta)
+{
+    size_t szA = M * K, szB = K * N, szC = M * N;
+
+    float *A = (float *)aligned_alloc(64, szA * sizeof(float));
+    float *B = (float *)aligned_alloc(64, szB * sizeof(float));
+    float *C1 = (float *)aligned_alloc(64, szC * sizeof(float));
+    float *C2 = (float *)aligned_alloc(64, szC * sizeof(float));
+    ASSERT_NE(A, nullptr);
+    ASSERT_NE(B, nullptr);
+    ASSERT_NE(C1, nullptr);
+    ASSERT_NE(C2, nullptr);
+
+    fill_random(A, szA);
+    fill_random(B, szB);
+    fill_random(C1, szC);
+    std::copy(C1, C1 + szC, C2);
+
+    // Number of threads must match what the SGEMM implementation queries
+    int num_threads = SIMDCNN_THREADS;
+    ASSERT_GT(num_threads, 0);
+
+    // Total buffer sizes: one per thread
+    const size_t packed_A_size = SIMDCNN_SGEMM_AVX2_PACKED_A_SIZE;
+    const size_t packed_B_size = SIMDCNN_SGEMM_AVX2_PACKED_B_SIZE;
+    size_t total_A = num_threads * packed_A_size;
+    size_t total_B = num_threads * packed_B_size;
+
+    float *packed_A_bun = (float *)page_aligned_alloc(total_A * sizeof(float));
+    float *packed_B_bun = (float *)page_aligned_alloc(total_B * sizeof(float));
+    ASSERT_NE(packed_A_bun, nullptr);
+    ASSERT_NE(packed_B_bun, nullptr);
+
+    // Call with user buffers (non‑NULL)
+    simdcnn_sgemm_error_t err = simdcnn_sgemm_avx2(C1, alpha, beta, A, B, M, K, N, packed_A_bun, packed_B_bun);
+    ASSERT_EQ(err, SIMDCNN_SGEMM_SUCCESS);
+
+    // Reference
+    reference_sgemm(C2, alpha, beta, A, B, M, K, N);
+
+    EXPECT_TRUE(matrices_close(C1, C2, szC))
+        << "Buffer reuse mismatch: M=" << M << " K=" << K << " N=" << N << " alpha=" << alpha << " beta=" << beta;
+
+    free(packed_A_bun);
+    free(packed_B_bun);
+    free(A);
+    free(B);
+    free(C1);
+    free(C2);
+}
+
+// 11. Tiny size, buffer reuse, beta=1
+TEST(Sgemm, BufferReuse_Small)
+{
+    test_with_buffers(4, 6, 9, 1.0f, 1.0f);
+}
+
+// 12. Medium size, buffer reuse, beta=0
+TEST(Sgemm, BufferReuse_Medium)
+{
+    test_with_buffers(64, 64, 64, 1.0f, 0.0f);
+}
+
+// 13. Exact macro‑tile sizes, buffer reuse
+TEST(Sgemm, BufferReuse_ExactBlocks)
+{
+    test_with_buffers(384, 256, 4096, 1.0f, 0.0f);
+}
+
+// 14. Non‑multiple of micro‑tile, buffer reuse, beta=2
+TEST(Sgemm, BufferReuse_NonMultiple)
+{
+    test_with_buffers(13, 17, 19, 0.5f, 2.0f);
+}
+
+// 15. alpha = 0, buffer reuse (only beta applied)
+TEST(Sgemm, BufferReuse_AlphaZero)
+{
+    test_with_buffers(10, 10, 10, 0.0f, 1.5f);
 }
 
 #endif // HAVE_AVX2

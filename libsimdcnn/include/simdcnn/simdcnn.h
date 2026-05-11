@@ -1,6 +1,8 @@
 #pragma once
 
+#include "config.h"
 #include "simdcnn/errors.h"
+
 #include <stddef.h>
 #include <stdint.h>
 

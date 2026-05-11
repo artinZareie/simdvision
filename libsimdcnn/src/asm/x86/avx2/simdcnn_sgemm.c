@@ -1,3 +1,4 @@
+#include "simdcnn/config.h"
 #include <assert.h>
 #include <immintrin.h>
 #include <omp.h>
@@ -42,14 +43,7 @@ static void simdcnn_sgemm_pack_A_avx2_(float *packedA, const float *A, size_t K,
 #pragma GCC unroll 8
         for (size_t i = 0; i < SIMDCNN_SGEMM_AVX2_MC; ++i)
         {
-            if (i >= size_ii || j >= size_kk)
-            {
-                packedA[i + j * SIMDCNN_SGEMM_AVX2_MC] = 0.0f;
-            }
-            else
-            {
-                packedA[i + j * SIMDCNN_SGEMM_AVX2_MC] = A[(i + ii) * K + (j + kk)];
-            }
+            packedA[i + j * SIMDCNN_SGEMM_AVX2_MC] = i >= size_ii || j >= size_kk ? 0.0f : A[(i + ii) * K + (j + kk)];
         }
     }
 }
@@ -62,19 +56,13 @@ static void simdcnn_sgemm_pack_B_avx2_(float *packedB, const float *B, size_t N,
 #pragma GCC unroll 8
         for (size_t j = 0; j < SIMDCNN_SGEMM_AVX2_NC; ++j)
         {
-            if (i >= size_kk || j >= size_jj)
-            {
-                packedB[j + i * SIMDCNN_SGEMM_AVX2_NC] = 0.0f;
-            }
-            else
-            {
-                packedB[j + i * SIMDCNN_SGEMM_AVX2_NC] = B[(i + kk) * N + j + jj] * alpha;
-            }
+            packedB[j + i * SIMDCNN_SGEMM_AVX2_NC] =
+                i >= size_kk || j >= size_jj ? 0.0f : B[(i + kk) * N + j + jj] * alpha;
         }
     }
 }
 
-/// See header for fulll documentation.
+/// See header for full documentation.
 simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float beta, const float *A, const float *B,
                                          uint64_t M, uint64_t K, uint64_t N, float *packed_A_bun, float *packed_B_bun)
 {
@@ -109,7 +97,7 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
     }
 #endif
 
-    const size_t max_threads = omp_get_max_threads();
+    const size_t max_threads = SIMDCNN_THREADS;
     const size_t num_threads = max_threads;
 
     float **packed_As = (float **)malloc(num_threads * sizeof(float *));
