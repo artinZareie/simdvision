@@ -185,6 +185,8 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
 #pragma omp for schedule(dynamic)
         for (size_t ii = 0; ii < M; ii += SIMDCNN_SGEMM_AVX2_MC)
         {
+            float ukernel_buffer[SIMDCNN_SGEMM_AVX2_MR * SIMDCNN_SGEMM_AVX2_NR] __attribute__((aligned(32)));
+
             const size_t end_ii = SIMDCNN_MIN(ii + SIMDCNN_SGEMM_AVX2_MC, M);
             const size_t size_ii = end_ii - ii;
 
@@ -202,44 +204,32 @@ simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float b
 
                     simdcnn_sgemm_pack_B_avx2_(packedB, B, N, kk, jj, size_kk, size_jj, alpha);
 
-                    for (size_t i = 0; i < (size_ii / SIMDCNN_SGEMM_AVX2_MR) * (SIMDCNN_SGEMM_AVX2_MR);
-                         i += SIMDCNN_SGEMM_AVX2_MR)
+                    for (size_t i = 0; i < size_ii; i += SIMDCNN_SGEMM_AVX2_MR)
                     {
-                        for (size_t j = 0; j < (size_jj / SIMDCNN_SGEMM_AVX2_NR) * SIMDCNN_SGEMM_AVX2_NR;
-                             j += SIMDCNN_SGEMM_AVX2_NR)
-                        {
-                            simdcnn_sgemm_ukernel_6x16_avx2(C + (ii + i) * N + (jj + j), N, packedA + i, packedB + j,
-                                                            size_kk);
-                        }
-                    }
+                        size_t valid_rows = SIMDCNN_MIN(SIMDCNN_SGEMM_AVX2_MR, size_ii - i);
 
-                    for (size_t i = 0; i < (size_ii / SIMDCNN_SGEMM_AVX2_MR) * SIMDCNN_SGEMM_AVX2_MR; ++i)
-                    {
-                        for (size_t j = (size_jj / SIMDCNN_SGEMM_AVX2_NR) * SIMDCNN_SGEMM_AVX2_NR; j < size_jj; ++j)
+                        for (size_t j = 0; j < size_jj; j += SIMDCNN_SGEMM_AVX2_NR)
                         {
-                            float sum = 0.0f;
+                            const size_t valid_cols = SIMDCNN_MIN(SIMDCNN_SGEMM_AVX2_NR, size_jj - j);
 
-                            for (size_t k = 0; k < size_kk; ++k)
+                            if (valid_rows == SIMDCNN_SGEMM_AVX2_MR && valid_cols == SIMDCNN_SGEMM_AVX2_NR)
                             {
-                                sum += packedA[k * SIMDCNN_SGEMM_AVX2_MC + i] * packedB[k * SIMDCNN_SGEMM_AVX2_NC + j];
+                                simdcnn_sgemm_ukernel_6x16_avx2(C + (ii + i) * N + (jj + j), N, packedA + i,
+                                                                packedB + j, size_kk);
                             }
-
-                            C[(ii + i) * N + (jj + j)] += sum;
-                        }
-                    }
-
-                    for (size_t i = (size_ii / SIMDCNN_SGEMM_AVX2_MR) * SIMDCNN_SGEMM_AVX2_MR; i < size_ii; ++i)
-                    {
-                        for (size_t j = 0; j < size_jj; ++j)
-                        {
-                            float sum = 0.0f;
-
-                            for (size_t k = 0; k < size_kk; ++k)
+                            else
                             {
-                                sum += packedA[k * SIMDCNN_SGEMM_AVX2_MC + i] * packedB[k * SIMDCNN_SGEMM_AVX2_NC + j];
-                            }
+                                for (size_t z = 0; z < SIMDCNN_SGEMM_AVX2_MR * SIMDCNN_SGEMM_AVX2_NR; ++z)
+                                    ukernel_buffer[z] = 0.0f;
 
-                            C[(ii + i) * N + (jj + j)] += sum;
+                                simdcnn_sgemm_ukernel_6x16_avx2(ukernel_buffer, SIMDCNN_SGEMM_AVX2_NR, packedA + i,
+                                                                packedB + j, size_kk);
+
+                                for (size_t r = 0; r < valid_rows; ++r)
+                                    for (size_t c = 0; c < valid_cols; ++c)
+                                        C[(ii + i + r) * N + (jj + j + c)] +=
+                                            ukernel_buffer[r * SIMDCNN_SGEMM_AVX2_NR + c];
+                            }
                         }
                     }
                 }
