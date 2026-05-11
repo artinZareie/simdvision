@@ -27,6 +27,9 @@ if(SIMD_CNN_AVX2_SUPPORTED)
         # relu
         ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f32.asm
         ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f64.asm
+
+        # sgemm
+        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_sgemm_ukernel_6x16.asm
     )
 
     list(APPEND LIBSIMDCNN_C_SOURCES

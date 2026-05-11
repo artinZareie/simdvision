@@ -83,7 +83,7 @@ static void run_test(uint64_t M, uint64_t K, uint64_t N, float alpha, float beta
     std::copy(C1, C1 + szC, C2);
 
     // Run your kernel
-    simdcnn_sgemm_error_t err = simdcnn_sgemm_avx2(C1, alpha, beta, A, B, M, K, N);
+    simdcnn_sgemm_error_t err = simdcnn_sgemm_avx2(C1, alpha, beta, A, B, M, K, N, NULL, NULL);
     ASSERT_EQ(err, SIMDCNN_SGEMM_SUCCESS);
 
     // Run reference

@@ -75,8 +75,11 @@ extern "C"
      *   - `simdcnn_debug_overlaps_f()` for the overlap detection routine.
      */
 
-    extern simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float beta, const float *A, const float *B,
-                                             uint64_t M, uint64_t K, uint64_t N);
+#include "simdcnn_sgemm.h"
+
+    extern simdcnn_sgemm_error_t simdcnn_sgemm_avx2(float *restrict C, float alpha, float beta, const float *A,
+                                                    const float *B, uint64_t M, uint64_t K, uint64_t N,
+                                                    float *packed_A_bun, float *packed_B_bun);
 #endif
 
 #ifdef __cplusplus
