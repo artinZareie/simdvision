@@ -7,7 +7,7 @@ if(SIMD_CNN_ERRORS_ENABLED)
     target_compile_definitions(simdcnn PRIVATE SIMDCNN_SGEMM_ERRORS_ENABLED=1)
 endif()
 
-set(LIBSIMDCNN_ASM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/asm)
+set(LIBSIMDCNN_KERNEL_ASM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/asm)
 
 set(LIBSIMDCNN_C_SOURCES
     src/simdcnn.c
@@ -21,19 +21,19 @@ if(SIMD_CNN_AVX2_SUPPORTED)
     list(APPEND LIBSIMDCNN_ASM_SOURCES
 
         # vecadd
-        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_vecadd_f32.asm
-        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_vecadd_f64.asm
+        ${LIBSIMDCNN_KERNEL_ASM_DIR}/x86/avx2/simdcnn_vecadd_f32.asm
+        ${LIBSIMDCNN_KERNEL_ASM_DIR}/x86/avx2/simdcnn_vecadd_f64.asm
 
         # relu
-        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f32.asm
-        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_relu_f64.asm
+        ${LIBSIMDCNN_KERNEL_ASM_DIR}/x86/avx2/simdcnn_relu_f32.asm
+        ${LIBSIMDCNN_KERNEL_ASM_DIR}/x86/avx2/simdcnn_relu_f64.asm
 
         # sgemm
-        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_sgemm_ukernel_6x16.asm
+        ${LIBSIMDCNN_KERNEL_ASM_DIR}/x86/avx2/simdcnn_sgemm_ukernel_6x16.asm
     )
 
     list(APPEND LIBSIMDCNN_C_SOURCES
-        ${LIBSIMDCNN_ASM_DIR}/x86/avx2/simdcnn_sgemm.c
+        ${LIBSIMDCNN_KERNEL_ASM_DIR}/x86/avx2/simdcnn_sgemm.c
     )
 
     # Define macro for C code
@@ -70,7 +70,7 @@ target_include_directories(simdcnn
 
 target_include_directories(simdcnn
     PRIVATE
-    ${LIBSIMDCNN_ASM_DIR}
+    ${LIBSIMDCNN_KERNEL_ASM_DIR}
 )
 
 target_compile_options(simdcnn PRIVATE
